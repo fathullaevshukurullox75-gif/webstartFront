@@ -26,7 +26,7 @@ const active = useCounterStore()
           </li>
           <li>
             <router-link to="/group" :class="{'active-link': active.active === 1}" >
-              <i class="fa-solid fa-book"></i>
+              <i class="fa-solid fa-users"></i>
             </router-link>
           </li>
           <li>

@@ -101,7 +101,7 @@ onMounted(fetchGroup);
     <div v-else class="group-card">
       <h2>{{ group.groupName }} </h2>
       <p class="meta">
-         O‘qituvchi: <strong>{{ group.teacher?.username }}</strong> | 📘 Kurs:
+         O‘qituvchi: <strong>{{ group.teacher?.username }}</strong> | Kurs:
         <strong>{{ group.course?.title }}</strong>
       </p>
 

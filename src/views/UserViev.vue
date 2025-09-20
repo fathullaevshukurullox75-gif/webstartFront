@@ -137,8 +137,7 @@ onMounted(() => {
           <input v-model="newUser.phonenumber" type="text" placeholder="Phone" required />
           <select v-model="newUser.role" required>
             <option value="user">User</option>
-            <option value="teacher">Teacher</option>
-            <option value="admin">Admin</option>
+      
           </select>
           <input v-model="newUser.password" type="password" placeholder="Password" required />
 
@@ -162,8 +161,7 @@ onMounted(() => {
           <input v-model="editUserData.phonenumber" type="text" placeholder="Phone" required />
           <select v-model="editUserData.role" required>
             <option value="user">User</option>
-            <option value="teacher">Teacher</option>
-            <option value="admin">Admin</option>
+
           </select>
 
           <div class="actions">
