@@ -165,7 +165,6 @@ onMounted(() => {
             <option value="teacher">Teacher</option>
             <option value="admin">Admin</option>
           </select>
-          <input v-model="editUserData.password" type="password" placeholder="Password" />
 
           <div class="actions">
             <button type="button" class="btn-cancel" @click="showEditModal = false">Cancel</button>

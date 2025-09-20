@@ -5,6 +5,8 @@ import Group from "@/views/Group.vue";
 import Course from "@/views/Course.vue";
 import Payme from "@/views/Payme.vue";
 import User from "@/views/UserViev.vue";
+import OneGroup from "@/components/OneGroupPage.vue";
+import Teacher from "@/views/TeacherView.vue"
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
   routes: [
@@ -18,6 +20,12 @@ const router = createRouter({
       path: "/group",
       name: "group",
       component: Group,
+      meta: { requiresAuth: true },
+    },
+    {
+      path: "/group/:id",
+      name: "onegroup",
+      component: OneGroup,
       meta: { requiresAuth: true },
     },
     {
@@ -40,6 +48,11 @@ const router = createRouter({
       path: "/users",
       name: "users",
       component: User,
+    },
+    {
+      path: "/teacher",
+      name: "teacher",
+      component: Teacher,
     },
   ],
 });

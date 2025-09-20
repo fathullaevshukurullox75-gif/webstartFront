@@ -2,17 +2,20 @@
 import { ref, onMounted } from "vue";
 import axios from "axios";
 import { useAuthStore } from "@/stores/auth";
+import { RouterLink, useRouter } from "vue-router";
+
+const apiUrl = import.meta.env.VITE_API_URL;
 
 const groups = ref<any[]>([]);
 const teachers = ref<any[]>([]);
 const courses = ref<any[]>([]);
-const students = ref<any[]>([]); // 👈 faqat role=user
-
+const students = ref<any[]>([]); 
+const router = useRouter();
 const newGroup = ref({
   groupName: "",
   teacher: "",
   course: "",
-  students: [] as string[], // 👈 studentlarni ID arrayi
+  students: [] as string[],
   schedule: [{ day: "", time: "" }],
   status: "active",
   startDate: "",
@@ -24,12 +27,11 @@ const newGroup = ref({
 const editingGroup = ref<any | null>(null);
 const statuses = ["active", "inactive", "archived"];
 
-const API_URL = "http://localhost:4001/api/groups";
-const TEACHER_URL = "http://localhost:4001/api/users/top";
-const COURSE_URL = "http://localhost:4001/api/courses";
-const STUDENT_URL = "http://localhost:4001/api/users"; // 👈 backendda role=user chiqadigan endpoint
+const API_URL = `${apiUrl}/groups`;
+const TEACHER_URL = `${apiUrl}/users/top`;
+const COURSE_URL = `${apiUrl}/courses`;
+const STUDENT_URL = `${apiUrl}/users`;
 
-// Groups
 const fetchGroups = async () => {
   try {
     const res = await axios.get(API_URL, {
@@ -39,11 +41,12 @@ const fetchGroups = async () => {
   } catch (err: any) {
     if (err.response?.data?.message === "jwt expired") {
       useAuthStore().logout();
+    } else {
+      console.error("Failed to fetch groups", err);
     }
   }
 };
 
-// Teachers
 const fetchTeachers = async () => {
   try {
     const res = await axios.get(TEACHER_URL, {
@@ -55,7 +58,6 @@ const fetchTeachers = async () => {
   }
 };
 
-// Courses
 const fetchCourses = async () => {
   try {
     const res = await axios.get(COURSE_URL, {
@@ -67,25 +69,44 @@ const fetchCourses = async () => {
   }
 };
 
-// Students (role=user)
 const fetchStudents = async () => {
   try {
     const res = await axios.get(STUDENT_URL, {
       headers: { token: localStorage.getItem("token") },
     });
-    students.value = res.data.users;
+    const allStudents = res.data.users;
+
+    groups.value = groups.value.map((group: any) => {
+      if (group.students && group.students.length > 0) {
+        group.students
+          .map((studentId: string) =>
+            allStudents.find((user: any) => user._id === studentId)
+          )
+          .filter((s: any) => s);
+      }
+      return group;
+    });
+
+    const studentsInGroups = groups.value.flatMap((g) =>
+      g.students.map((s: any) => s._id)
+    );
+    students.value = allStudents.filter(
+      (u: any) => u.role === "user" && !studentsInGroups.includes(u._id)
+    );
   } catch (err) {
     console.error("Failed to fetch students", err);
   }
 };
 
-// Save
+// Save Group
 const saveGroup = async () => {
   try {
     if (editingGroup.value) {
-      await axios.put(`${API_URL}/${editingGroup.value._id}`, newGroup.value, {
-        headers: { token: localStorage.getItem("token") },
-      });
+      await axios.put(
+        `${API_URL}/${editingGroup.value._id}`,
+        newGroup.value,
+        { headers: { token: localStorage.getItem("token") } }
+      );
       editingGroup.value = null;
     } else {
       await axios.post(API_URL, newGroup.value, {
@@ -94,18 +115,22 @@ const saveGroup = async () => {
     }
     resetForm();
     await fetchGroups();
+    await fetchStudents();
   } catch (err: any) {
-    console.log(err.response?.data);
+    console.error(err.response?.data || err);
   }
 };
 
-// Edit
+// Edit Group
 const editGroup = (group: any) => {
   editingGroup.value = group;
-  newGroup.value = { ...group, students: group.students?.map((s: any) => s._id) || [] };
+  newGroup.value = {
+    ...group,
+    students: group.students?.map((s: any) => s._id) || [],
+  };
 };
 
-// Delete
+// Delete Group
 const deleteGroup = async (id: string) => {
   if (!confirm("Are you sure you want to delete this group?")) return;
   try {
@@ -113,17 +138,20 @@ const deleteGroup = async (id: string) => {
       headers: { token: localStorage.getItem("token") },
     });
     await fetchGroups();
+    await fetchStudents();
   } catch (err: any) {
     alert(err.response?.data?.message || "Error deleting group");
   }
 };
 
+// Add schedule row
 const addScheduleRow = () => {
   newGroup.value.schedule.push({ day: "", time: "" });
 };
 
-// Reset
+// Reset form
 const resetForm = () => {
+  fetchStudents();
   newGroup.value = {
     groupName: "",
     teacher: "",
@@ -139,25 +167,27 @@ const resetForm = () => {
   editingGroup.value = null;
 };
 
-onMounted(() => {
-  fetchGroups();
-  fetchTeachers();
-  fetchCourses();
-  fetchStudents();
+// ✅ Mounted
+onMounted(async () => {
+  await fetchGroups();
+  await fetchTeachers();
+  await fetchCourses();
+  await fetchStudents();
 });
+const goToGroup = (id: string) => {
+  router.push({ name: "onegroup", params: { id } });
+};
 </script>
 
 <template>
   <div class="group-container">
     <h2 class="title">
-      {{ editingGroup ? "✏ Edit Group" : "Add New Group" }}
+      {{ editingGroup ? "Edit Group" : "Add New Group" }}
     </h2>
 
-    <!-- Form -->
     <form @submit.prevent="saveGroup" class="form">
       <input v-model="newGroup.groupName" placeholder="Group Name" required />
 
-      <!-- Teachers select -->
       <select v-model="newGroup.teacher" required>
         <option disabled value="">-- Select Teacher --</option>
         <option v-for="t in teachers" :key="t._id" :value="t._id">
@@ -165,7 +195,6 @@ onMounted(() => {
         </option>
       </select>
 
-      <!-- Courses select -->
       <select v-model="newGroup.course" required>
         <option disabled value="">-- Select Course --</option>
         <option v-for="c in courses" :key="c._id" :value="c._id">
@@ -173,14 +202,26 @@ onMounted(() => {
         </option>
       </select>
 
-      <!-- Students multi select -->
-      <select v-model="newGroup.students" multiple required>
-        <option v-for="s in students" :key="s._id" :value="s._id">
-          {{ s.username }} {{ s.surname }}
-        </option>
-      </select>
+      <div class="students-select">
+        <h4>
+          Select Students ({{ newGroup.students.length }}/{{ newGroup.capacity }})
+        </h4>
+        <div class="student-list">
+          <label v-for="s in students" :key="s._id" class="student-item">
+            <input
+              type="checkbox"
+              :value="s._id"
+              v-model="newGroup.students"
+              :disabled="
+                newGroup.students.length >= newGroup.capacity &&
+                !newGroup.students.includes(s._id)
+              "
+            />
+            {{ s.username }} {{ s.surname }}
+          </label>
+        </div>
+      </div>
 
-      <!-- Schedule -->
       <div v-for="(s, i) in newGroup.schedule" :key="i" class="schedule-row">
         <input v-model="s.day" placeholder="Day (e.g. Monday)" />
         <input v-model="s.time" placeholder="Time (e.g. 14:00)" />
@@ -189,7 +230,6 @@ onMounted(() => {
         Add Schedule
       </button>
 
-      <!-- Status -->
       <select v-model="newGroup.status">
         <option v-for="st in statuses" :key="st" :value="st">{{ st }}</option>
       </select>
@@ -197,7 +237,12 @@ onMounted(() => {
       <input type="date" v-model="newGroup.startDate" />
       <input type="date" v-model="newGroup.endDate" />
 
-      <input type="number" v-model="newGroup.capacity" placeholder="Capacity" min="1" />
+      <input
+        type="number"
+        v-model="newGroup.capacity"
+        placeholder="Capacity"
+        min="1"
+      />
 
       <textarea v-model="newGroup.description" placeholder="Description"></textarea>
 
@@ -205,26 +250,37 @@ onMounted(() => {
         <button type="submit" class="btn green">
           {{ editingGroup ? "Update Group" : "Add Group" }}
         </button>
-        <button v-if="editingGroup" type="button" class="btn gray" @click="resetForm">
+        <button
+          v-if="editingGroup"
+          type="button"
+          class="btn gray"
+          @click="resetForm"
+        >
           Cancel
         </button>
       </div>
     </form>
 
-    <!-- Groups list -->
     <h2 class="title">Groups</h2>
     <div class="course-list">
-      <div class="card" v-for="group in groups" :key="group._id">
+  <div
+    v-for="group in groups"
+    :key="group._id"
+    class="card"
+    @click="goToGroup(group._id)"
+  >
         <h3>{{ group.groupName }}</h3>
-        <p><strong>Teacher:</strong> {{ group.teacher?.username }} {{ group.teacher?.surname }}</p>
+        <p>
+          <strong>Teacher:</strong>
+          {{ group.teacher?.username }} {{ group.teacher?.surname }}
+        </p>
         <p><strong>Course:</strong> {{ group.course?.title || group.course }}</p>
         <p><strong>Students:</strong> {{ group.students?.length }}</p>
-        <ul>
-          <li v-for="stu in group.students" :key="stu._id">
-            {{ stu.username }} {{ stu.surname }}
-          </li>
-        </ul>
-        <p><strong>Status:</strong> <span :class="'badge ' + group.status">{{ group.status }}</span></p>
+
+        <p>
+          <strong>Status:</strong>
+          <span :class="'badge ' + group.status">{{ group.status }}</span>
+        </p>
         <p><strong>Capacity:</strong> {{ group.capacity }}</p>
         <p><strong>Start:</strong> {{ group.startDate?.slice(0, 10) }}</p>
         <p><strong>End:</strong> {{ group.endDate?.slice(0, 10) }}</p>
@@ -241,7 +297,9 @@ onMounted(() => {
 
         <div class="d-flex gap-2 mt-3">
           <button class="btn yellow" @click="editGroup(group)">Edit</button>
-          <button class="btn red" @click="deleteGroup(group._id)">Delete</button>
+          <button class="btn red" @click="deleteGroup(group._id)">
+            Delete
+          </button>
         </div>
       </div>
     </div>
@@ -249,10 +307,30 @@ onMounted(() => {
 </template>
 
 <style scoped>
-/* Sizning style'laringiz o‘zgarishsiz qoldi */
-</style>
-
-<style scoped>
+.students-select {
+  border: 1px solid #c8e6c9;
+  padding: 12px;
+  border-radius: 10px;
+}
+.student-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 8px;
+  margin-top: 10px;
+}
+.student-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  background: #fff;
+  border: 1px solid #e0e0e0;
+  border-radius: 6px;
+  font-size: 14px;
+}
+.student-item input {
+  accent-color: #2e7d32;
+}
 .group-container {
   max-width: 1100px;
   margin: 30px auto;
@@ -260,7 +338,6 @@ onMounted(() => {
   background: #ffffff;
   border-radius: 16px;
 }
-
 .title {
   font-size: 28px;
   font-weight: 700;
@@ -270,19 +347,14 @@ onMounted(() => {
   margin: 25px 0;
   text-align: center;
 }
-
 .form {
   display: flex;
   flex-direction: column;
   gap: 12px;
   margin-bottom: 40px;
-  background: #f9fff9;
   padding: 25px;
-  border: 1px solid #c8e6c9;
   border-radius: 14px;
-  box-shadow: 0 4px 12px rgba(46, 125, 50, 0.1);
 }
-
 .form input,
 .form select,
 .form textarea {
@@ -299,23 +371,19 @@ onMounted(() => {
   border-color: #2e7d32;
   box-shadow: 0 0 6px rgba(46, 125, 50, 0.3);
 }
-
 .schedule-row {
   display: flex;
   gap: 10px;
   flex-wrap: wrap;
 }
-
 textarea {
   min-height: 70px;
 }
-
 .btn-group {
   display: flex;
   gap: 10px;
   flex-wrap: wrap;
 }
-
 .btn {
   flex: 1;
   padding: 10px;
@@ -353,13 +421,11 @@ textarea {
   font-size: 12px;
   background: #2e7d32;
 }
-
 .course-list {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
   gap: 20px;
 }
-
 .card {
   background: #ffffff;
   padding: 20px;
@@ -382,7 +448,6 @@ textarea {
   font-size: 14px;
   color: #444;
 }
-
 .badge {
   padding: 4px 10px;
   border-radius: 6px;
@@ -400,7 +465,6 @@ textarea {
   background: #fbc02d;
   color: #333;
 }
-
 /* 📱 Responsive */
 @media (max-width: 768px) {
   .group-container {

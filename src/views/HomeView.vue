@@ -8,7 +8,10 @@ const route = useRoute()
 
 // reactive qilib olish
 const lastSegment = computed(() => {
-  const segments = route.path.split("/")
+  const segments = route.path.split("/").filter(Boolean) // bo‘sh stringlarni olib tashlaymiz
+  if (route.path.startsWith("/group/")) {
+    return "one-group"
+  }
   return segments.pop() || ""
 })
 </script>
