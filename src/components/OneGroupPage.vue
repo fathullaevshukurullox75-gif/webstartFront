@@ -61,11 +61,12 @@ const fetchAttendance = async () => {
 
 // Davomatni saqlash
 const saveAttendance = async () => {
-    if(user.role !== "admin" && selectedDate.value < new Date().toISOString().slice(0,10)){
-       return alert("faqat admin aldingi sanani ozgartira oladi")
-    }else if(selectedDate.value > new Date().toISOString().slice(0, 10)){
-        return alert("Siz faqat bugungi daomatni qila olasiz!")
+    if((user.role !== "admin" && user.role !== "superadmin") && selectedDate.value < new Date().toISOString().slice(0,10)){
+    return alert("Faqat admin yoki superadmin oldingi sanani o'zgartira oladi!");
+    } else if(selectedDate.value > new Date().toISOString().slice(0, 10)){
+    return alert("Siz faqat bugungi davomatni qila olasiz!");
     }
+
   try {
     saving.value = true;
     await axios.post(
