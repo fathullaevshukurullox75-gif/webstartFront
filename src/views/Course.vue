@@ -12,39 +12,46 @@ const newCourse = ref({
   level: "beginner",
 });
 
-const editingCourse = ref<any | null>(null); // Update uchun
-
+const editingCourse = ref<any | null>(null);
+const VITE_API_URL = import.meta.env.VITE_API_URL;
 const levels = ["beginner", "intermediate", "advanced"];
-const API_URL = "http://localhost:4001/api/courses";
+const API_URL = VITE_API_URL + "/courses";
+
+const loading = ref(false); // 🔹 Loader uchun state
+
+const getAuthHeader = () => {
+  const token = localStorage.getItem("token");
+  return { token };
+};
 
 const fetchCourses = async () => {
+  loading.value = true; // Loader yoqiladi
   try {
     const res = await axios.get(API_URL, {
-      headers: { token: localStorage.getItem("token") },
+      headers: getAuthHeader(),
     });
     courses.value = res.data;
   } catch (error: any) {
     if (error.response?.data?.message === "jwt expired") {
       useAuthStore().logout();
     }
-    alert(error.response?.data?.message);
+    alert(error.response?.data?.message || "Xatolik!");
+  } finally {
+    loading.value = false; // Loader o‘chadi
   }
 };
 
 const addCourse = async () => {
+  loading.value = true;
   try {
     if (editingCourse.value) {
-      // update rejimi
-      await axios.put(
-        `${API_URL}/${editingCourse.value._id}`,
-        newCourse.value,
-        { headers: { token: localStorage.getItem("token") } }
-      );
+      await axios.put(`${API_URL}/${editingCourse.value._id}`, newCourse.value, {
+        headers: getAuthHeader(),
+      });
       editingCourse.value = null;
     } else {
-      // create rejimi
       await axios.post(API_URL, newCourse.value, {
-        headers: { token: localStorage.getItem("token") },
+        headers: getAuthHeader(),
       });
     }
 
@@ -54,27 +61,32 @@ const addCourse = async () => {
     if (error.response?.data?.message === "jwt expired") {
       useAuthStore().logout();
     }
-    alert(error.response?.data?.message);
+    alert(error.response?.data?.message || "Xatolik!");
+  } finally {
+    loading.value = false;
   }
 };
 
 const editCourse = (course: any) => {
   editingCourse.value = course;
-  newCourse.value = { ...course }; // formaga yuklaydi
+  newCourse.value = { ...course };
 };
 
 const deleteCourse = async (id: string) => {
   if (!confirm("Are you sure you want to delete this course?")) return;
+  loading.value = true;
   try {
     await axios.delete(`${API_URL}/${id}`, {
-      headers: { token: localStorage.getItem("token") },
+      headers: getAuthHeader(),
     });
     await fetchCourses();
   } catch (error: any) {
     if (error.response?.data?.message === "jwt expired") {
       useAuthStore().logout();
     }
-    alert(error.response?.data?.message);
+    alert(error.response?.data?.message || "Xatolik!");
+  } finally {
+    loading.value = false;
   }
 };
 
@@ -99,6 +111,7 @@ onMounted(() => {
     <h2 class="title text-center">
       {{ editingCourse ? "Edit Course" : "Add New Course" }}
     </h2>
+
     <form @submit.prevent="addCourse" class="form">
       <input v-model="newCourse.title" placeholder="Title" required />
       <textarea v-model="newCourse.description" placeholder="Description"></textarea>
@@ -107,16 +120,23 @@ onMounted(() => {
       <select v-model="newCourse.level">
         <option v-for="lvl in levels" :key="lvl" :value="lvl">{{ lvl }}</option>
       </select>
-      <button type="submit" class="addCourseBtn">
+      <button type="submit" class="addCourseBtn" :disabled="loading">
         {{ editingCourse ? "Update Course" : "Add Course" }}
       </button>
       <button v-if="editingCourse" type="button" class="btn btn-secondary" @click="resetForm">
         Cancel
       </button>
-    </form >
+    </form>
 
     <h2 class="title">Courses</h2>
-    <div class="course-list">
+
+    <!-- Loader -->
+    <div v-if="loading" class="loader-container">
+      <div class="loader"></div>
+    </div>
+
+    <!-- Kurslar -->
+    <div v-else class="course-list">
       <div class="card" v-for="course in courses" :key="course._id">
         <h3>{{ course.title }}</h3>
         <p class="desc">{{ course.description }}</p>
@@ -124,7 +144,6 @@ onMounted(() => {
         <p><strong> Duration:</strong> {{ course.duration }}</p>
         <p><strong> Level:</strong> {{ course.level }}</p>
 
-        <!-- Tugmalar -->
         <div class="d-flex gap-2 mt-3">
           <button class="btn btn-danger" @click="deleteCourse(course._id)">
             Delete
@@ -138,8 +157,29 @@ onMounted(() => {
   </div>
 </template>
 
-
 <style scoped>
+/* Loader style */
+.loader-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 120px;
+}
+
+.loader {
+  border: 5px solid #c8e6c9;
+  border-top: 5px solid #2e7d32;
+  border-radius: 50%;
+  width: 45px;
+  height: 45px;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
 .container {
   max-width: 900px;
   margin: auto;
@@ -224,7 +264,6 @@ onMounted(() => {
   color: #555;
 }
 
-/* 📱 Mobil ekranlar uchun (telefon) */
 @media (max-width: 600px) {
   .container {
     padding: 15px;
@@ -248,7 +287,7 @@ onMounted(() => {
   }
 
   .course-list {
-    grid-template-columns: 1fr; /* Bitta ustun qilib qo‘yamiz */
+    grid-template-columns: 1fr; 
   }
 
   .card {
@@ -256,10 +295,9 @@ onMounted(() => {
   }
 }
 
-/* 📟 Planshetlar uchun */
 @media (min-width: 601px) and (max-width: 900px) {
   .course-list {
-    grid-template-columns: repeat(2, 1fr); /* 2 ustun */
+    grid-template-columns: repeat(2, 1fr); 
   }
 
   .title {

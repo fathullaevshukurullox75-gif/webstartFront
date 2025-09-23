@@ -2,15 +2,16 @@
 import { ref, onMounted } from "vue";
 import axios from "axios";
 import { useAuthStore } from "@/stores/auth";
-import { RouterLink, useRouter } from "vue-router";
+import { useRouter } from "vue-router";
 
 const apiUrl = import.meta.env.VITE_API_URL;
+const router = useRouter();
 
 const groups = ref<any[]>([]);
 const teachers = ref<any[]>([]);
 const courses = ref<any[]>([]);
-const students = ref<any[]>([]); 
-const router = useRouter();
+const students = ref<any[]>([]);
+
 const newGroup = ref({
   groupName: "",
   teacher: "",
@@ -27,12 +28,20 @@ const newGroup = ref({
 const editingGroup = ref<any | null>(null);
 const statuses = ["active", "inactive", "archived"];
 
+// ✅ Loaderlar
+const loading = ref({
+  fetch: false,
+  save: false,
+  delete: false,
+});
+
 const API_URL = `${apiUrl}/groups`;
 const TEACHER_URL = `${apiUrl}/users/top`;
 const COURSE_URL = `${apiUrl}/courses`;
 const STUDENT_URL = `${apiUrl}/users`;
 
 const fetchGroups = async () => {
+  loading.value.fetch = true;
   try {
     const res = await axios.get(API_URL, {
       headers: { token: localStorage.getItem("token") },
@@ -44,6 +53,8 @@ const fetchGroups = async () => {
     } else {
       console.error("Failed to fetch groups", err);
     }
+  } finally {
+    loading.value.fetch = false;
   }
 };
 
@@ -69,37 +80,10 @@ const fetchCourses = async () => {
   }
 };
 
-const fetchStudents = async () => {
-  try {
-    const res = await axios.get(STUDENT_URL, {
-      headers: { token: localStorage.getItem("token") },
-    });
-    const allStudents = res.data.users;
-
-    groups.value = groups.value.map((group: any) => {
-      if (group.students && group.students.length > 0) {
-        group.students
-          .map((studentId: string) =>
-            allStudents.find((user: any) => user._id === studentId)
-          )
-          .filter((s: any) => s);
-      }
-      return group;
-    });
-
-    const studentsInGroups = groups.value.flatMap((g) =>
-      g.students.map((s: any) => s._id)
-    );
-    students.value = allStudents.filter(
-      (u: any) => u.role === "user" && !studentsInGroups.includes(u._id)
-    );
-  } catch (err) {
-    console.error("Failed to fetch students", err);
-  }
-};
-
+const fetchStudents = async () => { try { const res = await axios.get(STUDENT_URL, { headers: { token: localStorage.getItem("token") }, }); const allStudents = res.data.users; groups.value = groups.value.map((group: any) => { if (group.students && group.students.length > 0) { group.students .map((studentId: string) => allStudents.find((user: any) => user._id === studentId) ) .filter((s: any) => s); } return group; }); const studentsInGroups = groups.value.flatMap((g) => g.students.map((s: any) => s._id) ); students.value = allStudents.filter( (u: any) => u.role === "user" && !studentsInGroups.includes(u._id) ); } catch (err) { console.error("Failed to fetch students", err); } };
 // Save Group
 const saveGroup = async () => {
+  loading.value.save = true;
   try {
     if (editingGroup.value) {
       await axios.put(
@@ -118,6 +102,8 @@ const saveGroup = async () => {
     await fetchStudents();
   } catch (err: any) {
     console.error(err.response?.data || err);
+  } finally {
+    loading.value.save = false;
   }
 };
 
@@ -133,6 +119,7 @@ const editGroup = (group: any) => {
 // Delete Group
 const deleteGroup = async (id: string) => {
   if (!confirm("Are you sure you want to delete this group?")) return;
+  loading.value.delete = true;
   try {
     await axios.delete(`${API_URL}/${id}`, {
       headers: { token: localStorage.getItem("token") },
@@ -141,6 +128,8 @@ const deleteGroup = async (id: string) => {
     await fetchStudents();
   } catch (err: any) {
     alert(err.response?.data?.message || "Error deleting group");
+  } finally {
+    loading.value.delete = false;
   }
 };
 
@@ -212,10 +201,6 @@ const goToGroup = (id: string) => {
               type="checkbox"
               :value="s._id"
               v-model="newGroup.students"
-              :disabled="
-                newGroup.students.length >= newGroup.capacity &&
-                !newGroup.students.includes(s._id)
-              "
             />
             {{ s.username }} {{ s.surname }}
           </label>
@@ -247,8 +232,9 @@ const goToGroup = (id: string) => {
       <textarea v-model="newGroup.description" placeholder="Description"></textarea>
 
       <div class="btn-group">
-        <button type="submit" class="btn green">
-          {{ editingGroup ? "Update Group" : "Add Group" }}
+        <button type="submit" class="btn green" :disabled="loading.save">
+          <span v-if="loading.save"> Saving...</span>
+          <span v-else>{{ editingGroup ? "Update Group" : "Add Group" }}</span>
         </button>
         <button
           v-if="editingGroup"
@@ -262,14 +248,12 @@ const goToGroup = (id: string) => {
     </form>
 
     <h2 class="title">Groups</h2>
-    <div class="course-list">
-  <div
-    v-for="group in groups"
-    :key="group._id"
-    class="card"
-    @click="goToGroup(group._id)"
-  >
-        <h3>{{ group.groupName }}</h3>
+
+    <div v-if="loading.fetch"> Loading groups...</div>
+
+    <div class="course-list" v-else>
+      <div v-for="group in groups" :key="group._id" class="card">
+        <h3 @click="goToGroup(group._id)">{{ group.groupName }}</h3>
         <p>
           <strong>Teacher:</strong>
           {{ group.teacher?.username }} {{ group.teacher?.surname }}
@@ -297,14 +281,20 @@ const goToGroup = (id: string) => {
 
         <div class="d-flex gap-2 mt-3">
           <button class="btn yellow" @click="editGroup(group)">Edit</button>
-          <button class="btn red" @click="deleteGroup(group._id)">
-            Delete
+          <button
+            class="btn red"
+            @click="deleteGroup(group._id)"
+            :disabled="loading.delete"
+          >
+            <span v-if="loading.delete"> Deleting...</span>
+            <span v-else>Delete</span>
           </button>
         </div>
       </div>
     </div>
   </div>
 </template>
+
 
 <style scoped>
 .students-select {

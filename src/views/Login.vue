@@ -5,7 +5,8 @@ import axios from "axios";
 import { useAuthStore } from "@/stores/auth";
 
 const router = useRouter();
-
+const isLoading = ref<boolean>(false)
+const VITE_API_URL = import.meta.env.VITE_API_URL;
 const email = ref<string>("");
 const password = ref<string>("");
 interface LoginResponse {
@@ -18,16 +19,19 @@ interface LoginResponse {
 
 const handleLogin = async () => {
   try {
-    const res = await axios.post<LoginResponse>("http://localhost:4001/api/auth/login", {
+    isLoading.value = true;
+    const res = await axios.post<LoginResponse>(`${VITE_API_URL}/auth/login`, {
       email: email.value,
       password: password.value,
     });
 
     // user va tokenni saqlash
     useAuthStore().setUser(res.data.user, res.data.token);
+    isLoading.value = false;
 
     router.push("/home");
   } catch (err: any) {
+    isLoading.value = false;
     alert(err.response?.data?.message || "Login xatosi!");
   }
 };
@@ -58,7 +62,8 @@ const handleLogin = async () => {
             placeholder="Password"
           />
         </div>
-        <button type="submit" class="login-btn">Log in</button>
+        <button disabled v-if="isLoading" class="login-btn loading">Loading...</button>
+        <button v-else type="submit" class="login-btn">Log in</button>
       </form>
     </div>
   </div>
@@ -74,7 +79,9 @@ const handleLogin = async () => {
   align-items: center;
   background: linear-gradient(to right, #c6f6d5, #81e6d9);
 }
-
+.loading{
+  background-color: #38a169b1;
+}
 .login-card {
   background: #fff;
   padding: 2rem;

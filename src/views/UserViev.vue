@@ -4,10 +4,14 @@ import axios from "axios";
 import { useAuthStore } from "@/stores/auth";
 
 const users = ref<any[]>([]);
-const API_URL = "http://localhost:4001/api/users";
+const apiUrl = import.meta.env.VITE_API_URL;
+const API_URL = apiUrl + "/users";
 
 const showModal = ref(false);       // Add user modal
 const showEditModal = ref(false);   // Edit user modal
+
+const loading = ref(false);         // Global loading state
+const deleteLoading = ref<string | null>(null); // faqat qaysi user o‘chayotganini ko‘rsatadi
 
 const newUser = ref({
   username: "",
@@ -37,8 +41,9 @@ const fetchUsers = async () => {
 };
 
 const addUser = async () => {
+  loading.value = true;
   try {
-    await axios.post("http://localhost:4001/api/auth/signup", newUser.value, {
+    await axios.post(`${apiUrl}/auth/signup`, newUser.value, {
       headers: { token: localStorage.getItem("token") },
     });
     showModal.value = false;
@@ -46,11 +51,14 @@ const addUser = async () => {
     newUser.value = { username: "", surname: "", email: "", age: "", phonenumber: "", role: "user", password: "" };
   } catch (err) {
     console.error("Failed to add user", err);
+  } finally {
+    loading.value = false;
   }
 };
 
 const deleteUser = async (id: string) => {
   if (!confirm("Haqiqatan ham o‘chirmoqchimisiz?")) return;
+  deleteLoading.value = id;
   try {
     await axios.delete(`${API_URL}/${id}`, {
       headers: { token: localStorage.getItem("token") },
@@ -58,6 +66,8 @@ const deleteUser = async (id: string) => {
     await fetchUsers();
   } catch (err) {
     console.error("Failed to delete user", err);
+  } finally {
+    deleteLoading.value = null;
   }
 };
 
@@ -69,6 +79,7 @@ const openEditModal = (u: any) => {
 
 // Userni yangilash
 const updateUser = async () => {
+  loading.value = true;
   try {
     await axios.put(`${API_URL}/${editUserData.value._id}`, editUserData.value, {
       headers: { token: localStorage.getItem("token") },
@@ -77,6 +88,8 @@ const updateUser = async () => {
     await fetchUsers();
   } catch (err) {
     console.error("Failed to update user", err);
+  } finally {
+    loading.value = false;
   }
 };
 
@@ -89,8 +102,10 @@ onMounted(() => {
   <div class="user-container">
     <div class="header">
         <h2 class="title">All Users</h2>
-        <button class="btn-add" @click="showModal = true">
-          <i class="fa-solid fa-plus"></i> Add User
+        <button class="btn-add" @click="showModal = true" :disabled="loading">
+          <i class="fa-solid fa-plus"></i>
+          <span v-if="!loading">Add User</span>
+          <span v-else class="spinner"></span>
         </button>
     </div>
 
@@ -118,8 +133,14 @@ onMounted(() => {
           <td><span :class="'badge ' + u.role">{{ u.role }}</span></td>
           <td>{{ u.createdAt?.slice(0,10) }}</td>
           <td class="action-buttons">
-            <button class="btn-edit" @click="openEditModal(u)">Edit</button>
-            <button class="btn-delete" @click="deleteUser(u._id)">Delete</button>
+            <button class="btn-edit" @click="openEditModal(u)" :disabled="loading">
+              <span v-if="!(loading && editUserData?._id===u._id)">Edit</span>
+              <span v-else class="spinner"></span>
+            </button>
+            <button class="btn-delete" @click="deleteUser(u._id)" :disabled="deleteLoading===u._id">
+              <span v-if="deleteLoading !== u._id">Delete</span>
+              <span v-else class="spinner"></span>
+            </button>
           </td>
         </tr>
       </tbody>
@@ -137,13 +158,16 @@ onMounted(() => {
           <input v-model="newUser.phonenumber" type="text" placeholder="Phone" required />
           <select v-model="newUser.role" required>
             <option value="user">User</option>
-      
+            <option value="teacher">Teacher</option>
           </select>
           <input v-model="newUser.password" type="password" placeholder="Password" required />
 
           <div class="actions">
-            <button type="button" class="btn-cancel" @click="showModal = false">Cancel</button>
-            <button type="submit" class="btn-save">Save</button>
+            <button type="button" class="btn-cancel" @click="showModal = false" :disabled="loading">Cancel</button>
+            <button type="submit" class="btn-save" :disabled="loading">
+              <span v-if="!loading">Save</span>
+              <span v-else class="spinner"></span>
+            </button>
           </div>
         </form>
       </div>
@@ -161,12 +185,15 @@ onMounted(() => {
           <input v-model="editUserData.phonenumber" type="text" placeholder="Phone" required />
           <select v-model="editUserData.role" required>
             <option value="user">User</option>
-
+            <option value="teacher">Teacher</option>
           </select>
 
           <div class="actions">
-            <button type="button" class="btn-cancel" @click="showEditModal = false">Cancel</button>
-            <button type="submit" class="btn-save">Update</button>
+            <button type="button" class="btn-cancel" @click="showEditModal = false" :disabled="loading">Cancel</button>
+            <button type="submit" class="btn-save" :disabled="loading">
+              <span v-if="!loading">Update</span>
+              <span v-else class="spinner"></span>
+            </button>
           </div>
         </form>
       </div>
@@ -181,6 +208,7 @@ onMounted(() => {
 
 .btn-add, .btn-save, .btn-cancel, .btn-edit, .btn-delete {
   border:none; border-radius:6px; cursor:pointer; font-size:14px; padding:8px 14px; transition:0.2s;
+  display:flex; align-items:center; justify-content:center; gap:6px;
 }
 .btn-add { background:#2e7d32; color:#fff; }
 .btn-add:hover { background:#256528; }
@@ -212,4 +240,17 @@ onMounted(() => {
 .modal-content input, .modal-content select { padding:10px; border:1px solid #ccc; border-radius:6px; }
 
 .actions { display:flex; justify-content:flex-end; gap:10px; margin-top:10px; }
+
+/* Spinner loader */
+.spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid #fff;
+  border-top: 2px solid transparent;
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+}
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
 </style>

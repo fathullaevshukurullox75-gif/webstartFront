@@ -4,8 +4,7 @@ import axios from "axios";
 import { useAuthStore } from "@/stores/auth";
 
 const users = ref<any[]>([]);
-const VITE_API_URL = import.meta.env.VITE_API_URL;
-const API_URL = VITE_API_URL + "/users/top";
+const API_URL = "http://localhost:4001/api/users";
 
 const showModal = ref(false);       // Add user modal
 const showEditModal = ref(false);   // Edit user modal
@@ -39,7 +38,7 @@ const fetchUsers = async () => {
 
 const addUser = async () => {
   try {
-    await axios.post(`${VITE_API_URL}/auth/signup`, newUser.value, {
+    await axios.post("http://localhost:4001/api/auth/signup", newUser.value, {
       headers: { token: localStorage.getItem("token") },
     });
     showModal.value = false;
@@ -138,7 +137,7 @@ onMounted(() => {
           <input v-model="newUser.phonenumber" type="text" placeholder="Phone" required />
           <select v-model="newUser.role" required>
             <option value="user">User</option>
-            <option value="teacher">Teacher</option>
+      
           </select>
           <input v-model="newUser.password" type="password" placeholder="Password" required />
 
@@ -162,7 +161,7 @@ onMounted(() => {
           <input v-model="editUserData.phonenumber" type="text" placeholder="Phone" required />
           <select v-model="editUserData.role" required>
             <option value="user">User</option>
-            <option value="teacher">Teacher</option>
+
           </select>
 
           <div class="actions">
