@@ -16,7 +16,8 @@ const homeCom = ref<HomeItem[]>([
   { name: "Course", path: "/course", active: 2, icon: "fa-solid fa-chalkboard-teacher" },
   { name: "attendance", path: "/attendance", active: 3, icon: "fa-solid fa-calendar-check" },
   { name: "Payme", path: "/payme", active: 4, icon: "fa-solid fa-money-bill" },
-  { name: "Teacher", path: "/teacher", active: 5, icon: "fa-solid fa-chalkboard-teacher" },
+  { name: "Admins", path: "/admin", active: 7, icon: "fa-solid fa-users" },
+  { name: "Teachers", path: "/teacher", active: 5, icon: "fa-solid fa-chalkboard-teacher" },
   { name: "Users", path: "/users", active: 6, icon: "fa-solid fa-users" }
 ]);
 

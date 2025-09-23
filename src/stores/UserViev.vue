@@ -137,6 +137,7 @@ onMounted(() => {
           <input v-model="newUser.phonenumber" type="text" placeholder="Phone" required />
           <select v-model="newUser.role" required>
             <option value="user">User</option>
+            <option value="admin">Admin</option>
       
           </select>
           <input v-model="newUser.password" type="password" placeholder="Password" required />

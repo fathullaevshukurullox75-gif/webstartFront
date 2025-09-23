@@ -59,13 +59,17 @@ const fetchAttendance = async () => {
   }
 };
 
-// Davomatni saqlash
 const saveAttendance = async () => {
-    if((user.role !== "admin" && user.role !== "superadmin") && selectedDate.value < new Date().toISOString().slice(0,10)){
-    return alert("Faqat admin yoki superadmin oldingi sanani o'zgartira oladi!");
-    } else if(selectedDate.value > new Date().toISOString().slice(0, 10)){
-    return alert("Siz faqat bugungi davomatni qila olasiz!");
-    }
+  const today = new Date().toISOString().slice(0, 10); 
+  const selected = selectedDate.value;
+
+  if ((user.role !== "admin" && user.role !== "superadmin") && selected < today) {
+    return alert("❌ Faqat admin yoki superadmin oldingi sanani o'zgartira oladi!");
+  }
+
+  if (selected > today) {
+    return alert("❌ Siz faqat bugungi davomatni qila olasiz!");
+  }
 
   try {
     saving.value = true;
@@ -73,7 +77,7 @@ const saveAttendance = async () => {
       ATTENDANCE_API,
       {
         group: groupId,
-        date: selectedDate.value,
+        date: selected,
         records: Object.entries(attendance.value).map(([studentId, status]) => ({
           student: studentId,
           status,
@@ -89,6 +93,7 @@ const saveAttendance = async () => {
     saving.value = false;
   }
 };
+
 
 onMounted(fetchGroup);
 </script>

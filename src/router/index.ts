@@ -7,6 +7,7 @@ import Payme from "@/views/Payme.vue";
 import User from "@/views/UserViev.vue";
 import OneGroup from "@/components/OneGroupPage.vue";
 import Teacher from "@/views/TeacherView.vue"
+import Admin from "@/views/AddAdminView.vue"
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
   routes: [
@@ -53,6 +54,11 @@ const router = createRouter({
       path: "/teacher",
       name: "teacher",
       component: Teacher,
+    },
+    {
+      path: "/admin",
+      name: "admin",
+      component: Admin,
     },
   ],
 });

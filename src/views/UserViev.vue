@@ -24,13 +24,15 @@ const newUser = ref({
 });
 
 const editUserData = ref<any>(null);
-
 const fetchUsers = async () => {
   try {
     const res = await axios.get(API_URL, {
       headers: { token: localStorage.getItem("token") },
     });
-    users.value = res.data.users;
+
+    let newdata = res.data.users.filter((item: any) => item.role === "user");
+
+    users.value = newdata;
   } catch (err: any) {
     if (err.response?.data?.message === "jwt expired") {
       useAuthStore().logout();
@@ -39,6 +41,7 @@ const fetchUsers = async () => {
     }
   }
 };
+
 
 const addUser = async () => {
   loading.value = true;

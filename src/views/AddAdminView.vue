@@ -5,10 +5,10 @@ import { useAuthStore } from "@/stores/auth";
 
 const users = ref<any[]>([]);
 const VITE_API_URL = import.meta.env.VITE_API_URL;
-const API_URL = VITE_API_URL + "/users/top";
+const API_URL = VITE_API_URL + "/users";
 
-const showModal = ref(false);       // Add user modal
-const showEditModal = ref(false);   // Edit user modal
+const showModal = ref(false);
+const showEditModal = ref(false);
 
 const newUser = ref({
   username: "",
@@ -16,18 +16,24 @@ const newUser = ref({
   email: "",
   age: "",
   phonenumber: "",
-  role: "teacher",
+  role: "admin",
   password: ""
 });
 
 const editUserData = ref<any>(null);
+
+// loading states
+const addLoading = ref(false);
+const updateLoading = ref(false);
+const deleteLoading = ref<string | null>(null);
 
 const fetchUsers = async () => {
   try {
     const res = await axios.get(API_URL, {
       headers: { token: localStorage.getItem("token") },
     });
-    users.value = res.data.users;
+    let newdata = res.data.users.filter((item: any) => item.role === "admin");
+    users.value = newdata;
   } catch (err: any) {
     if (err.response?.data?.message === "jwt expired") {
       useAuthStore().logout();
@@ -38,20 +44,24 @@ const fetchUsers = async () => {
 };
 
 const addUser = async () => {
+  addLoading.value = true;
   try {
     await axios.post(`${VITE_API_URL}/auth/signup`, newUser.value, {
       headers: { token: localStorage.getItem("token") },
     });
     showModal.value = false;
     await fetchUsers();
-    newUser.value = { username: "", surname: "", email: "", age: "", phonenumber: "", role: "teacher", password: "" };
+    newUser.value = { username: "", surname: "", email: "", age: "", phonenumber: "", role: "admin", password: "" };
   } catch (err) {
     console.error("Failed to add user", err);
+  } finally {
+    addLoading.value = false;
   }
 };
 
 const deleteUser = async (id: string) => {
   if (!confirm("Haqiqatan ham o‘chirmoqchimisiz?")) return;
+  deleteLoading.value = id;
   try {
     await axios.delete(`${API_URL}/${id}`, {
       headers: { token: localStorage.getItem("token") },
@@ -59,17 +69,18 @@ const deleteUser = async (id: string) => {
     await fetchUsers();
   } catch (err) {
     console.error("Failed to delete user", err);
+  } finally {
+    deleteLoading.value = null;
   }
 };
 
-// Edit modalni ochish
 const openEditModal = (u: any) => {
-  editUserData.value = { ...u }; // user ma’lumotlarini ko‘chirish
+  editUserData.value = { ...u };
   showEditModal.value = true;
 };
 
-// Userni yangilash
 const updateUser = async () => {
+  updateLoading.value = true;
   try {
     await axios.put(`${API_URL}/${editUserData.value._id}`, editUserData.value, {
       headers: { token: localStorage.getItem("token") },
@@ -78,6 +89,8 @@ const updateUser = async () => {
     await fetchUsers();
   } catch (err) {
     console.error("Failed to update user", err);
+  } finally {
+    updateLoading.value = false;
   }
 };
 
@@ -89,10 +102,10 @@ onMounted(() => {
 <template>
   <div class="user-container">
     <div class="header">
-        <h2 class="title">All Users</h2>
-        <button class="btn-add" @click="showModal = true">
-          <i class="fa-solid fa-plus"></i> Add User
-        </button>
+      <h2 class="title">All Admins</h2>
+      <button class="btn-add" @click="showModal = true">
+        <i class="fa-solid fa-plus"></i> Add User
+      </button>
     </div>
 
     <!-- Users table -->
@@ -120,7 +133,10 @@ onMounted(() => {
           <td>{{ u.createdAt?.slice(0,10) }}</td>
           <td class="action-buttons">
             <button class="btn-edit" @click="openEditModal(u)">Edit</button>
-            <button class="btn-delete" @click="deleteUser(u._id)">Delete</button>
+            <button class="btn-delete" @click="deleteUser(u._id)" :disabled="deleteLoading===u._id">
+              <span v-if="deleteLoading!==u._id">Delete</span>
+              <span v-else class="spinner"></span>
+            </button>
           </td>
         </tr>
       </tbody>
@@ -129,7 +145,7 @@ onMounted(() => {
     <!-- Add Modal -->
     <div v-if="showModal" class="modal-overlay">
       <div class="modal-content">
-        <h3>Add New User</h3>
+        <h3>Add New Admin</h3>
         <form @submit.prevent="addUser">
           <input v-model="newUser.username" type="text" placeholder="First Name" required />
           <input v-model="newUser.surname" type="text" placeholder="Last Name" required />
@@ -137,13 +153,16 @@ onMounted(() => {
           <input v-model="newUser.email" type="email" placeholder="Email" required />
           <input v-model="newUser.phonenumber" type="text" placeholder="Phone" required />
           <select v-model="newUser.role" required>
-            <option value="teacher">Teacher</option>
+            <option value="admin">Admin</option>
           </select>
           <input v-model="newUser.password" type="password" placeholder="Password" required />
 
           <div class="actions">
-            <button type="button" class="btn-cancel" @click="showModal = false">Cancel</button>
-            <button type="submit" class="btn-save">Save</button>
+            <button type="button" class="btn-cancel" @click="showModal = false" :disabled="addLoading">Cancel</button>
+            <button type="submit" class="btn-save" :disabled="addLoading">
+              <span v-if="!addLoading">Save</span>
+              <span v-else class="spinner"></span>
+            </button>
           </div>
         </form>
       </div>
@@ -152,7 +171,7 @@ onMounted(() => {
     <!-- Edit Modal -->
     <div v-if="showEditModal" class="modal-overlay">
       <div class="modal-content">
-        <h3>Edit User</h3>
+        <h3>Edit Admin</h3>
         <form @submit.prevent="updateUser">
           <input v-model="editUserData.username" type="text" placeholder="First Name" required />
           <input v-model="editUserData.surname" type="text" placeholder="Last Name" required />
@@ -160,12 +179,15 @@ onMounted(() => {
           <input v-model="editUserData.email" type="email" placeholder="Email" required />
           <input v-model="editUserData.phonenumber" type="text" placeholder="Phone" required />
           <select v-model="editUserData.role" required>
-            <option value="teacher">Teacher</option>
+            <option value="admin">Admin</option>
           </select>
 
           <div class="actions">
-            <button type="button" class="btn-cancel" @click="showEditModal = false">Cancel</button>
-            <button type="submit" class="btn-save">Update</button>
+            <button type="button" class="btn-cancel" @click="showEditModal = false" :disabled="updateLoading">Cancel</button>
+            <button type="submit" class="btn-save" :disabled="updateLoading">
+              <span v-if="!updateLoading">Update</span>
+              <span v-else class="spinner"></span>
+            </button>
           </div>
         </form>
       </div>
@@ -180,6 +202,7 @@ onMounted(() => {
 
 .btn-add, .btn-save, .btn-cancel, .btn-edit, .btn-delete {
   border:none; border-radius:6px; cursor:pointer; font-size:14px; padding:8px 14px; transition:0.2s;
+  display:flex; align-items:center; justify-content:center; gap:6px;
 }
 .btn-add { background:#2e7d32; color:#fff; }
 .btn-add:hover { background:#256528; }
@@ -203,6 +226,7 @@ onMounted(() => {
 .badge.user { background:#2e7d32; }
 .badge.teacher { background:#1976d2; }
 .badge.admin { background:#f57c00; }
+.badge.superadmin { background:#6a1b9a; }
 
 .modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.6); display:flex; align-items:center; justify-content:center; z-index:999; }
 .modal-content { background:#fff; padding:20px; border-radius:12px; width:400px; max-width:90%; }
@@ -211,4 +235,14 @@ onMounted(() => {
 .modal-content input, .modal-content select { padding:10px; border:1px solid #ccc; border-radius:6px; }
 
 .actions { display:flex; justify-content:flex-end; gap:10px; margin-top:10px; }
+
+.spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid #fff;
+  border-top: 2px solid transparent;
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
 </style>
