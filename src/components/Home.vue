@@ -12,7 +12,7 @@ interface HomeItem {
 
 const homeCom = ref<HomeItem[]>([
   { name: "Home", path: "/home", active: 0, icon: "fa-solid fa-house" },
-  { name: "Group", path: "/group", active: 1, icon: "fa-solid fa-users" },
+  { name: "Group", path: "/group", active: 1, icon: "fa-solid fa-layer-group" },
   { name: "Course", path: "/course", active: 2, icon: "fa-solid fa-chalkboard-teacher" },
   { name: "attendance", path: "/attendance", active: 3, icon: "fa-solid fa-calendar-check" },
   { name: "Payme", path: "/payme", active: 4, icon: "fa-solid fa-money-bill" },

@@ -28,7 +28,6 @@ const newGroup = ref({
 const editingGroup = ref<any | null>(null);
 const statuses = ["active", "inactive", "archived"];
 
-// ✅ Loaderlar
 const loading = ref({
   fetch: false,
   save: false,
@@ -80,17 +79,62 @@ const fetchCourses = async () => {
   }
 };
 
-const fetchStudents = async () => { try { const res = await axios.get(STUDENT_URL, { headers: { token: localStorage.getItem("token") }, }); const allStudents = res.data.users; groups.value = groups.value.map((group: any) => { if (group.students && group.students.length > 0) { group.students .map((studentId: string) => allStudents.find((user: any) => user._id === studentId) ) .filter((s: any) => s); } return group; }); const studentsInGroups = groups.value.flatMap((g) => g.students.map((s: any) => s._id) ); students.value = allStudents.filter( (u: any) => u.role === "user" && !studentsInGroups.includes(u._id) ); } catch (err) { console.error("Failed to fetch students", err); } };
+const fetchStudents = async () => {
+  try {
+    const res = await axios.get(STUDENT_URL, {
+      headers: { token: localStorage.getItem("token") },
+    });
+    const allStudents = res.data.users;
+
+    groups.value = groups.value.map((group: any) => {
+      if (group.students && group.students.length > 0) {
+        group.students
+          .map((studentId: string) =>
+            allStudents.find((user: any) => user._id === studentId)
+          )
+          .filter((s: any) => s);
+      }
+      return group;
+    });
+
+    const studentsInGroups = groups.value.flatMap((g) =>
+      g.students.map((s: any) => s._id)
+    );
+    students.value = allStudents.filter(
+      (u: any) => u.role === "user" && !studentsInGroups.includes(u._id)
+    );
+  } catch (err) {
+    console.error("Failed to fetch students", err);
+  }
+};
+
+// ✅ Student transfer
+const transferStudent = async (
+  studentId: string,
+  fromGroupId: string,
+  toGroupId: string
+) => {
+  try {
+    await axios.put(
+      `${API_URL}/transfer`,
+      { studentId, fromGroupId, toGroupId },
+      { headers: { token: localStorage.getItem("token") } }
+    );
+    await fetchGroups();
+    await fetchStudents();
+  } catch (err: any) {
+    console.error("Failed to transfer student", err);
+  }
+};
+
 // Save Group
 const saveGroup = async () => {
   loading.value.save = true;
   try {
     if (editingGroup.value) {
-      await axios.put(
-        `${API_URL}/${editingGroup.value._id}`,
-        newGroup.value,
-        { headers: { token: localStorage.getItem("token") } }
-      );
+      await axios.put(`${API_URL}/${editingGroup.value._id}`, newGroup.value, {
+        headers: { token: localStorage.getItem("token") },
+      });
       editingGroup.value = null;
     } else {
       await axios.post(API_URL, newGroup.value, {
@@ -156,13 +200,14 @@ const resetForm = () => {
   editingGroup.value = null;
 };
 
-// ✅ Mounted
+// Mounted
 onMounted(async () => {
   await fetchGroups();
   await fetchTeachers();
   await fetchCourses();
   await fetchStudents();
 });
+
 const goToGroup = (id: string) => {
   router.push({ name: "onegroup", params: { id } });
 };
@@ -178,7 +223,7 @@ const goToGroup = (id: string) => {
       <input v-model="newGroup.groupName" placeholder="Group Name" required />
 
       <select v-model="newGroup.teacher" required>
-        <option disabled value="">-- Select Teacher --</option>
+        <option v-if="newGroup !== null"  disabled value="">-- Select Teacher --</option>
         <option v-for="t in teachers" :key="t._id" :value="t._id">
           {{ t.username }} {{ t.surname }}
         </option>
@@ -197,11 +242,7 @@ const goToGroup = (id: string) => {
         </h4>
         <div class="student-list">
           <label v-for="s in students" :key="s._id" class="student-item">
-            <input
-              type="checkbox"
-              :value="s._id"
-              v-model="newGroup.students"
-            />
+            <input type="checkbox" :value="s._id" v-model="newGroup.students" />
             {{ s.username }} {{ s.surname }}
           </label>
         </div>
@@ -247,8 +288,8 @@ const goToGroup = (id: string) => {
       </div>
     </form>
 
+    <!-- Groups List -->
     <h2 class="title">Groups</h2>
-
     <div v-if="loading.fetch"> Loading groups...</div>
 
     <div class="course-list" v-else>
@@ -269,16 +310,49 @@ const goToGroup = (id: string) => {
         <p><strong>Start:</strong> {{ group.startDate?.slice(0, 10) }}</p>
         <p><strong>End:</strong> {{ group.endDate?.slice(0, 10) }}</p>
         <p><strong>Description:</strong> {{ group.description }}</p>
-
-        <div v-if="group.schedule?.length">
-          <h4>Schedule:</h4>
-          <ul>
-            <li v-for="(sch, idx) in group.schedule" :key="idx">
-              {{ sch.day }} - {{ sch.time }}
-            </li>
-          </ul>
+<div v-if="group.students?.length">
+  <h4 class="subtitle">Students</h4>
+  <div class="student-grid">
+    <div v-for="st in group.students" :key="st._id" class="student-card">
+      <div class="student-info">
+        <span class="avatar">
+          {{ st.username.charAt(0).toUpperCase() }}
+        </span>
+        <div>
+          <p class="student-name">{{ st.username }} {{ st.surname }}</p>
+          <p class="student-role">Student</p>
         </div>
+      </div>
+      <button
+        class="transfer-btn"
+        @click="st.showTransfer = !st.showTransfer"
+      >
+        ⇄ Transfer
+      </button>
 
+      <!-- Transfer dropdown (toggle) -->
+      <div v-if="st.showTransfer" class="transfer-dropdown">
+        <select
+          class="transfer-select"
+          @change="transferStudent(st._id, group._id, $event.target.value)"
+        >
+          <option disabled selected>-- Select new group --</option>
+          <option
+            v-for="g in groups.filter((gr) => gr._id !== group._id)"
+            :key="g._id"
+            :value="g._id"
+          >
+            {{ g.groupName }}
+          </option>
+        </select>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+
+        <!-- Actions -->
         <div class="d-flex gap-2 mt-3">
           <button class="btn yellow" @click="editGroup(group)">Edit</button>
           <button
@@ -455,7 +529,113 @@ textarea {
   background: #fbc02d;
   color: #333;
 }
-/* 📱 Responsive */
+.subtitle {
+  font-size: 18px;
+  font-weight: 600;
+  margin: 15px 0;
+  color: #2e7d32;
+}
+
+/* Grid layout */
+.student-grid {
+  display: grid;
+  max-height: 200px;
+  overflow-y: scroll;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: 15px;
+  margin-top: 10px;
+}
+
+/* Card style */
+.student-card {
+  background: #ffffff;
+  border: 1px solid #e0f2e9;
+  border-radius: 14px;
+  padding: 12px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.student-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+/* Info section */
+.student-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.avatar {
+  width: 36px;
+  height: 36px;
+  background: #66bb6a;
+  color: white;
+  border-radius: 50%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-weight: 600;
+}
+
+.student-name {
+  font-size: 15px;
+  font-weight: 600;
+  margin: 0;
+}
+
+.student-role {
+  font-size: 12px;
+  color: #777;
+  margin: 0;
+}
+
+/* Transfer button */
+.transfer-btn {
+  background: #2e7d32;
+  color: white;
+  padding: 6px 12px;
+  font-size: 13px;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  align-self: flex-end;
+  transition: background 0.2s;
+}
+
+.transfer-btn:hover {
+  background: #1b5e20;
+}
+
+/* Dropdown style */
+.transfer-dropdown {
+  margin-top: 8px;
+}
+
+.transfer-select {
+  width: 100%;
+  padding: 6px 8px;
+  border: 1px solid #a5d6a7;
+  border-radius: 8px;
+  font-size: 13px;
+  cursor: pointer;
+  background: #fff;
+  transition: border 0.2s, box-shadow 0.2s;
+}
+
+.transfer-select:focus {
+  border-color: #2e7d32;
+  box-shadow: 0 0 6px rgba(46, 125, 50, 0.3);
+  outline: none;
+}
+
+
 @media (max-width: 768px) {
   .group-container {
     padding: 15px;
