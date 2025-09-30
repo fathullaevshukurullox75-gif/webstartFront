@@ -2,6 +2,7 @@
 import { ref, onMounted } from "vue";
 import axios from "axios";
 import { useAuthStore } from "@/stores/auth";
+import * as bootstrap from "bootstrap";
 
 const courses = ref<any[]>([]);
 const newCourse = ref({
@@ -17,19 +18,18 @@ const VITE_API_URL = import.meta.env.VITE_API_URL;
 const levels = ["beginner", "intermediate", "advanced"];
 const API_URL = VITE_API_URL + "/courses";
 
-const loading = ref(false); // 🔹 Loader uchun state
+const loading = ref(false);
 
 const getAuthHeader = () => {
   const token = localStorage.getItem("token");
   return { token };
 };
 
+// 🔹 Faqat bir marta (sahifa ochilganda) backenddan kurslarni olib kelamiz
 const fetchCourses = async () => {
-  loading.value = true; // Loader yoqiladi
+  loading.value = true;
   try {
-    const res = await axios.get(API_URL, {
-      headers: getAuthHeader(),
-    });
+    const res = await axios.get(API_URL, { headers: getAuthHeader() });
     courses.value = res.data;
   } catch (error: any) {
     if (error.response?.data?.message === "jwt expired") {
@@ -37,7 +37,7 @@ const fetchCourses = async () => {
     }
     alert(error.response?.data?.message || "Xatolik!");
   } finally {
-    loading.value = false; // Loader o‘chadi
+    loading.value = false;
   }
 };
 
@@ -45,18 +45,32 @@ const addCourse = async () => {
   loading.value = true;
   try {
     if (editingCourse.value) {
+      // 🔹 Backendni yangilash
       await axios.put(`${API_URL}/${editingCourse.value._id}`, newCourse.value, {
         headers: getAuthHeader(),
       });
+
+      // 🔹 Frontend listni yangilash
+      const idx = courses.value.findIndex(c => c._id === editingCourse.value._id);
+      if (idx !== -1) {
+        courses.value[idx] = { ...courses.value[idx], ...newCourse.value };
+      }
+
       editingCourse.value = null;
     } else {
-      await axios.post(API_URL, newCourse.value, {
+      // 🔹 Yangi kurs qo‘shish
+      const res = await axios.post(API_URL, newCourse.value, {
         headers: getAuthHeader(),
       });
+
+      // 🔹 Ro‘yxatga qo‘shib qo‘yamiz
+      courses.value.push(res.data);
     }
 
-    await fetchCourses();
     resetForm();
+  const modalEl: any = document.getElementById("courseModal");
+  const modal = new bootstrap.Modal(modalEl);
+  modal.show();
   } catch (error: any) {
     if (error.response?.data?.message === "jwt expired") {
       useAuthStore().logout();
@@ -70,16 +84,20 @@ const addCourse = async () => {
 const editCourse = (course: any) => {
   editingCourse.value = course;
   newCourse.value = { ...course };
+
+  const modalEl: any = document.getElementById("courseModal");
+  const modal = new bootstrap.Modal(modalEl);
+  modal.show();
 };
 
 const deleteCourse = async (id: string) => {
   if (!confirm("Are you sure you want to delete this course?")) return;
   loading.value = true;
   try {
-    await axios.delete(`${API_URL}/${id}`, {
-      headers: getAuthHeader(),
-    });
-    await fetchCourses();
+    await axios.delete(`${API_URL}/${id}`, { headers: getAuthHeader() });
+
+    // 🔹 Frontend listdan o‘chiramiz
+    courses.value = courses.value.filter(c => c._id !== id);
   } catch (error: any) {
     if (error.response?.data?.message === "jwt expired") {
       useAuthStore().logout();
@@ -101,56 +119,128 @@ const resetForm = () => {
   editingCourse.value = null;
 };
 
-onMounted(() => {
-  fetchCourses();
-});
+onMounted(fetchCourses);
 </script>
 
+
+
 <template>
-  <div class="container">
-    <h2 class="title text-center">
-      {{ editingCourse ? "Edit Course" : "Add New Course" }}
-    </h2>
+  <div class="container mt-4">
+    <button
+      class="btn btn-success mb-3"
+      data-bs-toggle="modal"
+      data-bs-target="#courseModal"
+      @click="resetForm"
+    >
+      ➕ Add New Course
+    </button>
 
-    <form @submit.prevent="addCourse" class="form">
-      <input v-model="newCourse.title" placeholder="Title" required />
-      <textarea v-model="newCourse.description" placeholder="Description"></textarea>
-      <input v-model="newCourse.price" placeholder="Price" required />
-      <input v-model="newCourse.duration" placeholder="Duration" required />
-      <select v-model="newCourse.level">
-        <option v-for="lvl in levels" :key="lvl" :value="lvl">{{ lvl }}</option>
-      </select>
-      <button type="submit" class="addCourseBtn" :disabled="loading">
-        {{ editingCourse ? "Update Course" : "Add Course" }}
-      </button>
-      <button v-if="editingCourse" type="button" class="btn btn-secondary" @click="resetForm">
-        Cancel
-      </button>
-    </form>
-
-    <h2 class="title">Courses</h2>
-
-    <!-- Loader -->
-    <div v-if="loading" class="loader-container">
-      <div class="loader"></div>
+    <!-- Bootstrap Modal -->
+    <div
+      class="modal fade"
+      id="courseModal"
+      tabindex="-1"
+      aria-hidden="true"
+    >
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">
+              {{ editingCourse ? "Edit Course" : "Add New Course" }}
+            </h5>
+            <button
+              type="button"
+              class="btn-close"
+              data-bs-dismiss="modal"
+              aria-label="Close"
+              @click="resetForm"
+            ></button>
+          </div>
+          <div class="modal-body">
+            <form @submit.prevent="addCourse">
+              <div class="mb-3">
+                <input
+                  v-model="newCourse.title"
+                  class="form-control"
+                  placeholder="Title"
+                  required
+                />
+              </div>
+              <div class="mb-3">
+                <textarea
+                  v-model="newCourse.description"
+                  class="form-control"
+                  placeholder="Description"
+                ></textarea>
+              </div>
+              <div class="mb-3">
+                <input
+                  v-model="newCourse.price"
+                  class="form-control"
+                  placeholder="Price"
+                  required
+                />
+              </div>
+              <div class="mb-3">
+                <input
+                  v-model="newCourse.duration"
+                  class="form-control"
+                  placeholder="Duration"
+                  required
+                />
+              </div>
+              <div class="mb-3">
+                <select v-model="newCourse.level" class="form-select">
+                  <option
+                    v-for="lvl in levels"
+                    :key="lvl"
+                    :value="lvl"
+                  >
+                    {{ lvl }}
+                  </option>
+                </select>
+              </div>
+              <button type="submit" class="btn btn-success" :disabled="loading">
+                {{ editingCourse ? "Update Course" : "Add Course" }}
+              </button>
+              <button
+                type="button"
+                class="btn btn-secondary ms-2"
+                data-bs-dismiss="modal"
+                @click="resetForm"
+              >
+                Cancel
+              </button>
+            </form>
+          </div>
+        </div>
+      </div>
     </div>
 
-    <!-- Kurslar -->
-    <div v-else class="course-list">
-      <div class="card" v-for="course in courses" :key="course._id">
-        <h3>{{ course.title }}</h3>
-        <p class="desc">{{ course.description }}</p>
-        <p><strong> Price:</strong> {{ course.price }}</p>
-        <p><strong> Duration:</strong> {{ course.duration }}</p>
-        <p><strong> Level:</strong> {{ course.level }}</p>
+    <!-- Loader -->
+    <div v-if="loading" class="text-center my-4">
+      <div class="spinner-border text-success" role="status"></div>
+    </div>
 
-        <div class="d-flex gap-2 mt-3">
-          <button class="btn btn-danger" @click="deleteCourse(course._id)">
-            Delete
-          </button>
-          <button class="btn btn-warning" @click="editCourse(course)">
-            Edit
-          </button>
+    <!-- Courses list -->
+    <div v-else class="row">
+      <div class="col-md-4 mb-3" v-for="course in courses" :key="course._id">
+        <div class="card h-100">
+          <div class="card-body">
+            <h5 class="card-title">{{ course.title }}</h5>
+            <p class="card-text">{{ course.description }}</p>
+            <p><strong>Price:</strong> {{ course.price }}</p>
+            <p><strong>Duration:</strong> {{ course.duration }}</p>
+            <p><strong>Level:</strong> {{ course.level }}</p>
+          </div>
+          <div class="card-footer d-flex justify-content-between">
+            <button class="btn btn-danger" @click="deleteCourse(course._id)">
+              Delete
+            </button>
+            <button class="btn btn-warning" @click="editCourse(course)">
+              Edit
+            </button>
+          </div>
         </div>
       </div>
     </div>

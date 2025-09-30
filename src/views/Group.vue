@@ -213,80 +213,161 @@ const goToGroup = (id: string) => {
 };
 </script>
 
-<template>
+  <template>
   <div class="group-container">
-    <h2 class="title">
-      {{ editingGroup ? "Edit Group" : "Add New Group" }}
-    </h2>
+    <!-- Trigger Button -->
+    <button
+      type="button"
+      class="btn btn-success mb-3"
+      data-bs-toggle="modal"
+      data-bs-target="#groupModal"
+      @click="resetForm"
+    >
+      ➕ Add Group
+    </button>
 
-    <form @submit.prevent="saveGroup" class="form">
-      <input v-model="newGroup.groupName" placeholder="Group Name" required />
+    <!-- Bootstrap Modal -->
+    <div
+      class="modal fade"
+      id="groupModal"
+      tabindex="-1"
+      aria-labelledby="groupModalLabel"
+      aria-hidden="true"
+    >
+      <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title" id="groupModalLabel">
+              {{ editingGroup ? "Edit Group" : "Add New Group" }}
+            </h5>
+            <button
+              type="button"
+              class="btn-close"
+              data-bs-dismiss="modal"
+              aria-label="Close"
+              @click="resetForm"
+            ></button>
+          </div>
 
-      <select v-model="newGroup.teacher" required>
-        <option v-if="newGroup !== null"  disabled value="">-- Select Teacher --</option>
-        <option v-for="t in teachers" :key="t._id" :value="t._id">
-          {{ t.username }} {{ t.surname }}
-        </option>
-      </select>
+          <div class="modal-body">
+            <form @submit.prevent="saveGroup" class="form">
+              <input
+                v-model="newGroup.groupName"
+                class="form-control"
+                placeholder="Group Name"
+                required
+              />
 
-      <select v-model="newGroup.course" required>
-        <option disabled value="">-- Select Course --</option>
-        <option v-for="c in courses" :key="c._id" :value="c._id">
-          {{ c.title }}
-        </option>
-      </select>
+              <select v-model="newGroup.teacher" class="form-select" required>
+                <option disabled value="">-- Select Teacher --</option>
+                <option v-for="t in teachers" :key="t._id" :value="t._id">
+                  {{ t.username }} {{ t.surname }}
+                </option>
+              </select>
 
-      <div class="students-select">
-        <h4>
-          Select Students ({{ newGroup.students.length }}/{{ newGroup.capacity }})
-        </h4>
-        <div class="student-list">
-          <label v-for="s in students" :key="s._id" class="student-item">
-            <input type="checkbox" :value="s._id" v-model="newGroup.students" />
-            {{ s.username }} {{ s.surname }}
-          </label>
+              <select v-model="newGroup.course" class="form-select" required>
+                <option disabled value="">-- Select Course --</option>
+                <option v-for="c in courses" :key="c._id" :value="c._id">
+                  {{ c.title }}
+                </option>
+              </select>
+
+              <!-- Students -->
+              <div class="students-select">
+                <h6>
+                  Select Students ({{ newGroup.students.length }}/{{
+                    newGroup.capacity
+                  }})
+                </h6>
+                <div class="student-list">
+                  <label
+                    v-for="s in students"
+                    :key="s._id"
+                    class="student-item"
+                  >
+                    <input
+                      type="checkbox"
+                      :value="s._id"
+                      v-model="newGroup.students"
+                    />
+                    {{ s.username }} {{ s.surname }}
+                  </label>
+                </div>
+              </div>
+
+              <!-- Schedule -->
+              <div
+                v-for="(s, i) in newGroup.schedule"
+                :key="i"
+                class="schedule-row"
+              >
+                <input
+                  v-model="s.day"
+                  class="form-control"
+                  placeholder="Day (e.g. Monday)"
+                />
+                <input
+                  v-model="s.time"
+                  class="form-control"
+                  placeholder="Time (e.g. 14:00)"
+                />
+              </div>
+              <button
+                type="button"
+                class="btn btn-sm btn-outline-success mt-2"
+                @click="addScheduleRow"
+              >
+                ➕ Add Schedule
+              </button>
+
+              <select v-model="newGroup.status" class="form-select mt-2">
+                <option v-for="st in statuses" :key="st" :value="st">
+                  {{ st }}
+                </option>
+              </select>
+
+              <input type="date" v-model="newGroup.startDate" class="form-control" />
+              <input type="date" v-model="newGroup.endDate" class="form-control" />
+
+              <input
+                type="number"
+                v-model="newGroup.capacity"
+                class="form-control"
+                placeholder="Capacity"
+                min="1"
+              />
+
+              <textarea
+                v-model="newGroup.description"
+                class="form-control"
+                placeholder="Description"
+              ></textarea>
+            </form>
+          </div>
+
+          <div class="modal-footer">
+            <button
+              type="button"
+              class="btn btn-secondary"
+              data-bs-dismiss="modal"
+              @click="resetForm"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              class="btn btn-success"
+              @click="saveGroup"
+              :disabled="loading.save"
+              data-bs-dismiss="modal"
+            >
+              <span v-if="loading.save"> Saving...</span>
+              <span v-else>{{ editingGroup ? "Update Group" : "Add Group" }}</span>
+            </button>
+          </div>
         </div>
       </div>
-
-      <div v-for="(s, i) in newGroup.schedule" :key="i" class="schedule-row">
-        <input v-model="s.day" placeholder="Day (e.g. Monday)" />
-        <input v-model="s.time" placeholder="Time (e.g. 14:00)" />
-      </div>
-      <button type="button" class="btn small" @click="addScheduleRow">
-        Add Schedule
-      </button>
-
-      <select v-model="newGroup.status">
-        <option v-for="st in statuses" :key="st" :value="st">{{ st }}</option>
-      </select>
-
-      <input type="date" v-model="newGroup.startDate" />
-      <input type="date" v-model="newGroup.endDate" />
-
-      <input
-        type="number"
-        v-model="newGroup.capacity"
-        placeholder="Capacity"
-        min="1"
-      />
-
-      <textarea v-model="newGroup.description" placeholder="Description"></textarea>
-
-      <div class="btn-group">
-        <button type="submit" class="btn green" :disabled="loading.save">
-          <span v-if="loading.save"> Saving...</span>
-          <span v-else>{{ editingGroup ? "Update Group" : "Add Group" }}</span>
-        </button>
-        <button
-          v-if="editingGroup"
-          type="button"
-          class="btn gray"
-          @click="resetForm"
-        >
-          Cancel
-        </button>
-      </div>
-    </form>
+    </div>
 
     <!-- Groups List -->
     <h2 class="title">Groups</h2>
@@ -354,7 +435,8 @@ const goToGroup = (id: string) => {
 
         <!-- Actions -->
         <div class="d-flex gap-2 mt-3">
-          <button class="btn yellow" @click="editGroup(group)">Edit</button>
+          <button  data-bs-toggle="modal"
+      data-bs-target="#groupModal" class="btn yellow" @click="editGroup(group)">Edit</button>
           <button
             class="btn red"
             @click="deleteGroup(group._id)"
